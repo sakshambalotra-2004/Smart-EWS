@@ -2,9 +2,9 @@ import { useState } from 'react';
 import Sidebar from '../../components/Sidebar';
 import { API } from '../../context/AuthContext';
 
-const SAMPLE_CSV = `student_id,name,email,dept,semester,past_cgpa,enrolled_subjects,semester_label
-CS2201,Aisha Rahman,aisha@university.edu,CS,3,1.8,CS301;CS302;CS303;CS304,Spring 2025
-CS2202,James Wilson,james@university.edu,CS,3,3.5,CS301;CS302;CS303;CS304,Spring 2025`;
+const SAMPLE_CSV = `student_id,name,email,parent_email,dept,semester,past_cgpa,enrolled_subjects
+CS2201,Aisha Rahman,aisha@university.edu,parent.aisha@gmail.com,CS,2,9.10,CS301;CS302;CS303;CS304
+CS2202,James Wilson,james@university.edu,parent.james@gmail.com,CS,5,2.58,CS301;CS302;CS303;CS304`;
 
 export default function AdminUploadRecords() {
   const [file, setFile] = useState(null);
@@ -83,14 +83,14 @@ export default function AdminUploadRecords() {
             <div className="card-title">CSV Format Guide</div>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>Your CSV must include these columns:</p>
             {[
-              { col: 'student_id', ex: 'CS2201', note: 'Unique student ID' },
-              { col: 'name', ex: 'Aisha Rahman', note: 'Full name' },
-              { col: 'email', ex: 'aisha@university.edu', note: 'University email' },
-              { col: 'dept', ex: 'CS', note: 'CS | EE | ME | BBA' },
-              { col: 'semester', ex: '3', note: 'Current semester (1-8)' },
-              { col: 'past_cgpa', ex: '2.45', note: 'Previous CGPA (0.0-4.0)' },
-              { col: 'enrolled_subjects', ex: 'CS301;CS302', note: 'Semicolon separated' },
-              { col: 'semester_label', ex: 'Spring 2025', note: 'Semester identifier' },
+              { col: 'student_id',        ex: 'CS2201',                    note: 'Unique student ID' },
+              { col: 'name',              ex: 'Aisha Rahman',              note: 'Full name' },
+              { col: 'email',             ex: 'aisha@university.edu',      note: 'University email' },
+              { col: 'parent_email',      ex: 'parent.aisha@gmail.com',    note: 'Parent contact email' },
+              { col: 'dept',              ex: 'CS',                        note: 'CS | EE | ME | BBA' },
+              { col: 'semester',          ex: '3',                         note: 'Current semester (1–8)' },
+              { col: 'past_cgpa',         ex: '7.50',                      note: 'Previous CGPA (0.0–10.0)' },
+              { col: 'enrolled_subjects', ex: 'CS301;CS302',               note: 'Semicolon separated' },
             ].map(r => (
               <div className="metric-row" key={r.col}>
                 <div>

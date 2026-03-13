@@ -29,14 +29,16 @@ router.post('/uploadrecords', upload.single('file'), async (req, res) => {
         let created = 0, updated = 0;
         for (const row of results) {
           const studentData = {
-            student_id: row.student_id?.trim(),
-            name: row.name?.trim(),
-            email: row.email?.trim(),
-            dept: row.dept?.trim(),
-            semester: parseInt(row.semester),
-            past_cgpa: parseFloat(row.past_cgpa),
-            enrolled_subjects: row.enrolled_subjects ? row.enrolled_subjects.split(';').map(s => s.trim()) : [],
-            semester_label: row.semester_label?.trim() || 'Spring 2025'
+            student_id:        row.student_id?.trim(),
+            name:              row.name?.trim(),
+            email:             row.email?.trim().toLowerCase(),
+            parent_email:      row.parent_email?.trim().toLowerCase(),
+            dept:              row.dept?.trim(),
+            semester:          parseInt(row.semester),
+            past_cgpa:         parseFloat(row.past_cgpa),
+            enrolled_subjects: row.enrolled_subjects
+              ? row.enrolled_subjects.split(';').map(s => s.trim())
+              : [],
           };
 
           if (!studentData.student_id) continue;
@@ -52,11 +54,11 @@ router.post('/uploadrecords', upload.single('file'), async (req, res) => {
             if (!existingUser) {
               const defaultPassword = await bcrypt.hash('Student@123', 12);
               await User.create({
-                name: studentData.name,
-                email: studentData.email,
-                password: defaultPassword,
-                role: 'student',
-                dept: studentData.dept,
+                name:       studentData.name,
+                email:      studentData.email,
+                password:   defaultPassword,
+                role:       'student',
+                dept:       studentData.dept,
                 student_id: studentData.student_id
               });
             }
@@ -129,7 +131,7 @@ router.put('/subjects/:id/assign', async (req, res) => {
       { faculty_id },
       { new: true }
     ).populate('faculty_id', 'name email');
-    
+
     if (!subject) return res.status(404).json({ message: 'Subject not found' });
     res.json(subject);
   } catch (err) {
@@ -143,16 +145,60 @@ router.get('/analytics', async (req, res) => {
     const { Prediction } = require('../models/Prediction');
     const totalStudents = await Student.countDocuments();
     const predictions = await Prediction.find().sort({ created_at: -1 }).limit(100);
-    
-    const high = predictions.filter(p => p.risk_level === 'high').length;
+
+    const high   = predictions.filter(p => p.risk_level === 'high').length;
     const medium = predictions.filter(p => p.risk_level === 'medium').length;
-    const low = predictions.filter(p => p.risk_level === 'low').length;
-    
+    const low    = predictions.filter(p => p.risk_level === 'low').length;
+
     const deptBreakdown = await Student.aggregate([
       { $group: { _id: '$dept', count: { $sum: 1 } } }
     ]);
 
     res.json({ totalStudents, riskBreakdown: { high, medium, low }, deptBreakdown, totalPredictions: predictions.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+const PerceptronModel = require('../../ml-model/models/PerceptronModel');
+
+// POST /api/admin/upload-model — upload perceptron_model.csv
+router.post('/upload-model', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+    const lines = fs.readFileSync(req.file.path, 'utf8').trim().split('\n');
+    fs.unlinkSync(req.file.path);
+
+    // Parse CSV: rows = classes, cols = [features..., bias]
+    const header = lines[0].split(',');                         // ca_total,midterm_score,attendance_pct,past_cgpa,bias
+    const featureNames = header.slice(0, -1);                   // drop 'bias'
+    const rows = lines.slice(1).map(l => l.split(',').map(Number));
+
+    // Build W [features x classes] and b [classes]
+    const numFeatures = featureNames.length;
+    const numClasses  = rows.length;
+
+    const W = Array.from({ length: numFeatures }, (_, f) =>
+      rows.map(row => row[f])
+    );
+    const b = rows.map(row => row[row.length - 1]);
+
+    // Deactivate previous active model
+    await PerceptronModel.updateMany({ is_active: true }, { is_active: false });
+
+    const version = `v${Date.now()}`;
+    const saved = await PerceptronModel.create({
+      version,
+      features: featureNames,
+      weights:  W,
+      biases:   b,
+      classes:  ['high', 'medium', 'low'],
+      accuracy: parseFloat(req.body.accuracy) || null,
+      is_active: true
+    });
+
+    res.json({ message: 'Model uploaded and activated', version: saved.version, id: saved._id });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
